@@ -1,0 +1,76 @@
+﻿@page "/ocr"
+
+@using System.IO;
+@using Blazor.FileReader;
+@using Spire.Pdf;
+@using Tesseract;
+@using Spire.Pdf.Graphics;
+@inject IFileReaderService fileReaderService;
+
+<h3>Ocr</h3>
+<input type="file" accept="application/pdf" @ref=inputElement />
+<button @onclick=ReadFile>Read file</button>
+<hr>
+<div class="row">
+    <div class="column" >
+        <img src="@ImageUrl" alt="Image" asp-append-version="true" width="800px" />
+    </div>
+    <div class="column">
+        <textarea rows="4" cols="50">
+             @text
+        </textarea>
+    </div>
+</div>
+
+@code {
+    ElementReference inputElement;
+    System.Drawing.Image _image;
+    string ImageUrl;
+    string text;
+}
+
+@functions {
+
+    public async Task ReadFile()
+    {
+        ImageUrl = null;
+        foreach (var file in await fileReaderService.CreateReference(inputElement).EnumerateFilesAsync())
+        {
+
+            using (MemoryStream memoryStream = await file.CreateMemoryStreamAsync(4089))
+            {
+                var pdfToImg = new NReco.PdfRenderer.PdfToImageConverter();
+                _image = pdfToImg.GenerateImage(memoryStream , 0 );
+                using (System.Drawing.Graphics g = System.Drawing.Graphics.FromImage(_image))
+                {
+                    g.DrawRectangle(new System.Drawing.Pen(System.Drawing.Color.Red), new System.Drawing.Rectangle(40, 145, 500, 55));
+                    g.DrawRectangle(new System.Drawing.Pen(System.Drawing.Color.Red), new System.Drawing.Rectangle(40, 730, 500, 60));
+
+                }
+                using (var ms = new MemoryStream())
+                {
+                    _image.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+                    ImageUrl = "data:image;base64," + Convert.ToBase64String(ms.ToArray());
+                }
+                using (var ms = new MemoryStream())
+                {
+                    _image.Save(ms, System.Drawing.Imaging.ImageFormat.Tiff);
+
+                    using (var tEngine = new TesseractEngine(@"tessdata", "pol", EngineMode.Default))
+                    {
+                        using (var img = Pix.LoadTiffFromMemory(ms.ToArray()))
+                        {
+                            var region = new Rect(40, 145, 500, 55);
+
+                            using (var page = tEngine.Process(img, region, PageSegMode.Auto))
+                            {
+                                text = page.GetText();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+    }
+}
