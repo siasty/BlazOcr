@@ -16,7 +16,7 @@
         <img src="@ImageUrl" alt="Image" asp-append-version="true" width="800px" />
     </div>
     <div class="column">
-        <textarea rows="4" cols="50">
+        <textarea rows="25" cols="50">
              @text
         </textarea>
     </div>
@@ -27,6 +27,14 @@
     System.Drawing.Image _image;
     string ImageUrl;
     string text;
+
+    List<System.Drawing.Rectangle> rectangles = new List<System.Drawing.Rectangle>
+    {
+        new System.Drawing.Rectangle(100, 780, 3000, 250),
+        new System.Drawing.Rectangle(100, 1780, 3000, 250),
+        new System.Drawing.Rectangle(100, 3520, 3000, 250),
+        new System.Drawing.Rectangle(100, 3900, 3000, 250)
+    };
 }
 
 @functions {
@@ -40,13 +48,16 @@
             using (MemoryStream memoryStream = await file.CreateMemoryStreamAsync(4089))
             {
                 var pdfToImg = new NReco.PdfRenderer.PdfToImageConverter();
+                pdfToImg.Dpi = 800;
                 _image = pdfToImg.GenerateImage(memoryStream , 0 );
                 using (System.Drawing.Graphics g = System.Drawing.Graphics.FromImage(_image))
                 {
-                    g.DrawRectangle(new System.Drawing.Pen(System.Drawing.Color.Red), new System.Drawing.Rectangle(40, 145, 500, 55));
-                    g.DrawRectangle(new System.Drawing.Pen(System.Drawing.Color.Red), new System.Drawing.Rectangle(40, 730, 500, 60));
-
+                    foreach (var item in rectangles)
+                    {
+                        g.DrawRectangle(new System.Drawing.Pen(System.Drawing.Color.Red), item);
+                    }
                 }
+
                 using (var ms = new MemoryStream())
                 {
                     _image.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
@@ -56,15 +67,16 @@
                 {
                     _image.Save(ms, System.Drawing.Imaging.ImageFormat.Tiff);
 
-                    using (var tEngine = new TesseractEngine(@"tessdata", "pol", EngineMode.Default))
+                    using (var tEngine = new TesseractEngine(@"tessdata", "pol2", EngineMode.Default))
                     {
                         using (var img = Pix.LoadTiffFromMemory(ms.ToArray()))
                         {
-                            var region = new Rect(40, 145, 500, 55);
-
-                            using (var page = tEngine.Process(img, region, PageSegMode.Auto))
+                            foreach (var item in rectangles)
                             {
-                                text = page.GetText();
+                                using (var page = tEngine.Process(img,new Rect(item.X,item.Y,item.Width,item.Height), PageSegMode.Auto))
+                                {
+                                    text += page.GetText();
+                                }
                             }
                         }
                     }
